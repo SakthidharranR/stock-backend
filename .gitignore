@@ -1,0 +1,17 @@
+.env
+.env.local
+*.local
+
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+services/**/bin/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
