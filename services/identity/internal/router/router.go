@@ -6,10 +6,11 @@ import (
 
 	"stockapp/identity/internal/handler"
 	"stockapp/identity/internal/service"
+	"stockapp/identity/internal/store"
 )
 
-func New(logger *slog.Logger) http.Handler {
-	registerSvc := service.NewRegisterService(logger)
+func New(logger *slog.Logger, store *store.UserStore) http.Handler {
+	registerSvc := service.NewRegisterService(logger, store)
 	registerHandler := handler.NewRegisterHandler(registerSvc, logger)
 
 	mux := http.NewServeMux()

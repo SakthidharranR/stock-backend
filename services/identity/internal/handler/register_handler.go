@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -28,9 +27,9 @@ func (h *RegisterHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.Register(req)
 	if err != nil {
-		var valErr service.ValidationError
-		if errors.As(err, &valErr) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": valErr.Error()})
+		msg := err.Error()
+		if msg == "email is required" || msg == "cognito_sub is required" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": msg})
 			return
 		}
 		h.logger.Error("register failed", "err", err)

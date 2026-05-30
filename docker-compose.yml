@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: stockapp_dev
       POSTGRES_DB: stockapp
     ports:
-      - "5432:5432"
+      - "5433:5432"  # 5433 on host — Windows Postgres often uses 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
