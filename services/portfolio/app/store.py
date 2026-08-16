@@ -48,7 +48,7 @@ class PortfolioStore:
         with self._connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, user_id, cash_balance FROM accounts WHERE user_id = %s",
+                    "SELECT id, user_id, cash_balance, created_at FROM accounts WHERE user_id = %s",
                     (user_id,),
                 )
                 row = cur.fetchone()
@@ -58,7 +58,7 @@ class PortfolioStore:
                     """
                     INSERT INTO accounts (user_id, cash_balance)
                     VALUES (%s, 10000.00)
-                    RETURNING id, user_id, cash_balance
+                    RETURNING id, user_id, cash_balance, created_at
                     """,
                     (user_id,),
                 )
