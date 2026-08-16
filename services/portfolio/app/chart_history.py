@@ -30,6 +30,27 @@ def infer_starting_cash(
     return cash
 
 
+def clamp_window_start(
+    range_start_ts: int,
+    *,
+    account_created_at: datetime | None,
+    orders_asc: list[dict],
+    transfers_asc: list[dict] | None = None,
+) -> int:
+    """Do not chart before the account (or first ledger event) existed."""
+    starts: list[int] = []
+    if account_created_at is not None:
+        starts.append(int(_as_utc(account_created_at).timestamp()))
+    if orders_asc:
+        starts.append(_event_ts(orders_asc[0]))
+    transfers = transfers_asc or []
+    if transfers:
+        starts.append(_event_ts(transfers[0]))
+    if not starts:
+        return range_start_ts
+    return max(range_start_ts, min(starts))
+
+
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)

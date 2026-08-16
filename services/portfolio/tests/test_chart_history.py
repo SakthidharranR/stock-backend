@@ -1,7 +1,11 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from app.chart_history import infer_starting_cash, reconstruct_portfolio_chart
+from app.chart_history import (
+    clamp_window_start,
+    infer_starting_cash,
+    reconstruct_portfolio_chart,
+)
 
 
 def test_infer_starting_cash_undoes_buys_and_sells() -> None:
@@ -63,3 +67,61 @@ def test_reconstruct_tracks_holding_price_moves() -> None:
     mid = next(p for p in points if p.time == t1)
     assert mid.value == 10100.0  # 9000 + 10*110
     assert points[-1].value == 10500.0
+
+
+def test_clamp_window_start_ignores_history_before_account() -> None:
+    created = datetime(2026, 8, 16, 18, 0, tzinfo=timezone.utc)
+    week_ago = int(datetime(2026, 8, 9, tzinfo=timezone.utc).timestamp())
+    created_ts = int(created.timestamp())
+    assert (
+        clamp_window_start(
+            week_ago,
+            account_created_at=created,
+            orders_asc=[],
+            transfers_asc=[],
+        )
+        == created_ts
+    )
+
+
+def test_new_account_chart_does_not_use_pre_account_candles() -> None:
+    created = datetime(2026, 8, 16, 18, 0, tzinfo=timezone.utc)
+    created_ts = int(created.timestamp())
+    now_ts = created_ts + 3600
+    old_candle = created_ts - 7 * 24 * 3600
+
+    orders = [
+        {
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": Decimal("10"),
+            "fill_price": Decimal("100"),
+            "total": Decimal("1000"),
+            "created_at": created,
+        }
+    ]
+    candles = {
+        "AAPL": [
+            {"time": old_candle, "close": 50.0},
+            {"time": created_ts, "close": 100.0},
+            {"time": now_ts, "close": 101.0},
+        ]
+    }
+    start = clamp_window_start(
+        old_candle,
+        account_created_at=created,
+        orders_asc=orders,
+        transfers_asc=[],
+    )
+    points = reconstruct_portfolio_chart(
+        orders_asc=orders,
+        candles_by_symbol=candles,
+        current_cash=Decimal("9000"),
+        current_total=Decimal("10010"),
+        window_start_ts=start,
+        now_ts=now_ts,
+    )
+    assert points[0].time >= created_ts
+    assert points[0].value == 10000.0
+    assert all(p.value >= 10000.0 for p in points)
+

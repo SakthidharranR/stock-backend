@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth import AuthUser, get_current_user, set_user_store
-from app.chart_history import reconstruct_portfolio_chart
+from app.chart_history import clamp_window_start, reconstruct_portfolio_chart
 from app.config import get_cors_origins, get_database_url, get_market_service_url, redact_db_url
 from app.models import (
     CashTransferItem,
@@ -164,6 +164,7 @@ def _try_reconstruct_chart(
     chart_range: str,
     today: date,
     baseline: Decimal,
+    account_created_at: datetime | None = None,
 ) -> list[PortfolioChartPoint] | None:
     orders = store.get_all_orders_asc(account_id)
     transfers = store.get_all_cash_transfers_asc(account_id)
@@ -190,6 +191,13 @@ def _try_reconstruct_chart(
     else:
         days = CHART_RANGE_DAYS.get(chart_range, 30)
         window_start_ts = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
+
+    window_start_ts = clamp_window_start(
+        window_start_ts,
+        account_created_at=account_created_at,
+        orders_asc=orders,
+        transfers_asc=transfers,
+    )
 
     points = reconstruct_portfolio_chart(
         orders_asc=orders,
@@ -307,6 +315,7 @@ def _build_chart_points(
     today: date,
     market: MarketClient | None = None,
     cash: Decimal | None = None,
+    account_created_at: datetime | None = None,
 ) -> list[PortfolioChartPoint]:
     if market is not None and cash is not None:
         try:
@@ -319,6 +328,7 @@ def _build_chart_points(
                 chart_range,
                 today,
                 baseline,
+                account_created_at=account_created_at,
             )
             if reconstructed:
                 return reconstructed
@@ -362,6 +372,7 @@ def _build_portfolio_summary(
     cash: Decimal,
     chart_range: str = "1D",
     market: MarketClient | None = None,
+    account_created_at: datetime | None = None,
 ) -> PortfolioSummary:
     equity = _compute_equity(holdings)
     total = cash + equity
@@ -381,6 +392,7 @@ def _build_portfolio_summary(
         today,
         market=market,
         cash=cash,
+        account_created_at=account_created_at,
     )
 
     # Headline change always matches chart start → current.
@@ -467,7 +479,13 @@ def create_app(
         holdings = _ensure_holding_quotes(market, holdings)
         cash = Decimal(str(account["cash_balance"]))
         return _build_portfolio_summary(
-            store, str(account["id"]), holdings, cash, range, market=market
+            store,
+            str(account["id"]),
+            holdings,
+            cash,
+            range,
+            market=market,
+            account_created_at=account.get("created_at"),
         )
 
     @app.get("/holdings", response_model=list[HoldingItem])
