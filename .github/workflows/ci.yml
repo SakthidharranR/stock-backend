@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  test-identity:
+    name: test-identity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/identity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  test-portfolio:
+    name: test-portfolio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/portfolio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  test:
+    name: test
+    needs: [test-identity, test-portfolio]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all test jobs
+        run: |
+          echo "identity=${{ needs.test-identity.result }}"
+          echo "portfolio=${{ needs.test-portfolio.result }}"
+          test "${{ needs.test-identity.result }}" = "success"
+          test "${{ needs.test-portfolio.result }}" = "success"
+
+  deploy:
+    name: deploy
+    needs: test
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require Lightsail secrets
+        run: |
+          test -n "${{ secrets.LIGHTSAIL_HOST }}"
+          test -n "${{ secrets.LIGHTSAIL_SSH_KEY }}"
+      - name: Install rsync
+        run: sudo apt-get update && sudo apt-get install -y rsync openssh-client
+      - name: Deploy to Lightsail
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          ssh-keyscan -H "$LIGHTSAIL_HOST" >> ~/.ssh/known_hosts
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/lightsail.pem -o StrictHostKeyChecking=yes" \
+            --exclude '.git/' \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            --exclude '.env.prod' \
+            --exclude 'docker-compose.override.yml' \
+            --exclude '__pycache__/' \
+            --exclude '.pytest_cache/' \
+            --exclude '.venv/' \
+            ./ "ubuntu@${LIGHTSAIL_HOST}:~/stock-backend/"
+          ssh -i ~/.ssh/lightsail.pem "ubuntu@${LIGHTSAIL_HOST}" \
+            'cd ~/stock-backend && chmod +x scripts/*.sh && ./scripts/compose-prod.sh up -d --build'

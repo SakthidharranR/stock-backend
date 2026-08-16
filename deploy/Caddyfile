@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$API_PUBLIC_HOST} {
+	encode gzip
+
+	handle_path /identity/* {
+		reverse_proxy identity:8081
+	}
+
+	handle_path /market/* {
+		reverse_proxy market:8082
+	}
+
+	handle_path /portfolio/* {
+		reverse_proxy portfolio:8083
+	}
+
+	handle {
+		respond "Stock App APIs. Use /identity, /market, or /portfolio." 200
+	}
+}

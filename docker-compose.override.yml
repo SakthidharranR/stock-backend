@@ -1,0 +1,10 @@
+# Auto-loaded by `docker compose up` on your laptop. Not used when you pass
+# `-f docker-compose.yml -f docker-compose.prod.yml` on Lightsail.
+services:
+  identity:
+    environment:
+      AWS_SHARED_CREDENTIALS_FILE: /root/.aws/credentials
+      AWS_CONFIG_FILE: /root/.aws/config
+    volumes:
+      # Cognito Admin lookups (Google SSO password-options) on Windows/local.
+      - ${USERPROFILE}/.aws:/root/.aws:ro

@@ -1,29 +1,43 @@
-# identity service (Go)
+# Identity service (Python / FastAPI)
 
-Handles app user records and JWT validation. **Passwords stay in Cognito.**
+Handles app user records in Postgres. **Passwords stay in Cognito.**
 
-## Planned endpoints
+## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| GET | `/users/me` | Current user profile (JWT) |
-| POST | `/users/me` | Create profile on first login (JWT) |
-| PUT | `/users/me` | Update display name (JWT) |
+| POST | `/register` | Create profile after Cognito signup (`cognito_sub`, `email`, optional `display_name`) |
 
-## Implement yourself
-
-1. `go mod init` in this folder
-2. `cmd/server/main.go` — HTTP server
-3. `internal/auth` — validate Cognito JWT via JWKS
-4. `internal/store` — Postgres (`users` table)
-5. Run migrations from `migrations/`
+`/users/me` JWT endpoints are planned but not implemented yet.
 
 ## Local run (without Docker)
 
 ```bash
-export DATABASE_URL=postgres://stockapp:stockapp_dev@localhost:5432/stockapp?sslmode=disable
-go run ./cmd/server
+cd services/identity
+pip install -r requirements.txt
+export DATABASE_URL=postgres://stockapp:stockapp_dev@localhost:5433/stockapp?sslmode=disable
+uvicorn app.main:create_application --factory --reload --port 8081
+```
+
+## Cognito sync CLI
+
+Imports Cognito users into Postgres (used by `scripts/dev-reset.ps1`):
+
+```bash
+python scripts/sync_cognito.py
+```
+
+Requires `COGNITO_USER_POOL_ID`, `DATABASE_URL`, and AWS credentials with `cognito-idp:ListUsers`.
+
+## Tests
+
+```bash
+pip install -r requirements.txt
+pytest
+
+# Against running Docker identity service:
+pytest -m integration
 ```
 
 ## Env

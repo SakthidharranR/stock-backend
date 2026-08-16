@@ -12,6 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY scripts ./scripts
 
-EXPOSE 8081
+EXPOSE 8082
 
-CMD ["uvicorn", "app.main:create_application", "--factory", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["uvicorn", "app.main:create_application", "--factory", "--host", "0.0.0.0", "--port", "8082"]

@@ -1,0 +1,73 @@
+# Interview / public deploy. Always use with the base file:
+#   docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Passing -f skips docker-compose.override.yml (no Windows ~/.aws mount).
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: !override []
+
+  identity:
+    env_file: !override
+      - .env.prod
+    environment: !override
+      PORT: "8081"
+      DATABASE_URL: postgres://stockapp:${POSTGRES_PASSWORD}@postgres:5432/stockapp?sslmode=disable
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      DEV_AUTH_BYPASS: "false"
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_APP_CLIENT_ID: ${COGNITO_APP_CLIENT_ID}
+      AWS_REGION: ${COGNITO_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    ports: !override []
+    volumes: !override []
+
+  market:
+    environment:
+      DATABASE_URL: postgres://stockapp:${POSTGRES_PASSWORD}@postgres:5432/stockapp?sslmode=disable
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+    ports: !override []
+
+  portfolio:
+    environment:
+      DATABASE_URL: postgres://stockapp:${POSTGRES_PASSWORD}@postgres:5432/stockapp?sslmode=disable
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      MARKET_SERVICE_URL: http://market:8082
+      DEV_AUTH_BYPASS: "false"
+      COGNITO_REGION: ${COGNITO_REGION}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID}
+      COGNITO_APP_CLIENT_ID: ${COGNITO_APP_CLIENT_ID}
+    ports: !override []
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: stock-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_PUBLIC_HOST: ${API_PUBLIC_HOST}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      identity:
+        condition: service_started
+      market:
+        condition: service_started
+      portfolio:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
