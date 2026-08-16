@@ -1,6 +1,12 @@
 .env
 .env.local
+.env.prod
 *.local
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
 
 # Go build outputs
 *.exe
