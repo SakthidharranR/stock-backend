@@ -29,6 +29,8 @@ After the first Actions run appears:
 4. **Require status checks to pass** → add **`test`** (the aggregator, not `test-identity` alone)
 5. Save
 
+Import file: [`.github/rulesets/require-test.json`](.github/rulesets/require-test.json) — GitHub → **Settings → Rules → New ruleset → Import a ruleset**.
+
 ## First Lightsail pull
 
 The server copy was originally `scp`. After this repo exists, keep using `~/stock-backend` on the instance. Deploy rsyncs over that folder and **excludes** `.env.prod`, so production secrets remain.
