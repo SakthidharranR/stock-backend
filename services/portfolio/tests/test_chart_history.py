@@ -125,3 +125,72 @@ def test_new_account_chart_does_not_use_pre_account_candles() -> None:
     assert points[0].value == 10000.0
     assert all(p.value >= 10000.0 for p in points)
 
+
+def test_reconstruct_uses_last_close_before_window() -> None:
+    buy = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    pre = datetime(2026, 7, 9, tzinfo=timezone.utc)
+    start = datetime(2026, 7, 10, tzinfo=timezone.utc)
+    mid = datetime(2026, 7, 20, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    orders = [
+        {
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": Decimal("10"),
+            "fill_price": Decimal("100"),
+            "total": Decimal("1000"),
+            "created_at": buy,
+        }
+    ]
+    candles = {
+        "AAPL": [
+            {"time": int(buy.timestamp()), "close": 100.0},
+            {"time": int(pre.timestamp()), "close": 80.0},
+            {"time": int(mid.timestamp()), "close": 120.0},
+            {"time": int(now.timestamp()), "close": 150.0},
+        ]
+    }
+    points = reconstruct_portfolio_chart(
+        orders_asc=orders,
+        candles_by_symbol=candles,
+        current_cash=Decimal("9000"),
+        current_total=Decimal("10500"),
+        window_start_ts=int(start.timestamp()),
+        now_ts=int(now.timestamp()),
+    )
+    assert points[0].time == int(start.timestamp())
+    assert points[0].value == 9800.0  # 9000 + 10 * 80
+
+
+def test_sample_step_fills_sparse_multi_day_window() -> None:
+    buy = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 8, tzinfo=timezone.utc)
+    orders = [
+        {
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": Decimal("10"),
+            "fill_price": Decimal("100"),
+            "total": Decimal("1000"),
+            "created_at": buy,
+        }
+    ]
+    candles = {
+        "AAPL": [
+            {"time": int(buy.timestamp()), "close": 100.0},
+            {"time": int(now.timestamp()), "close": 101.0},
+        ]
+    }
+    points = reconstruct_portfolio_chart(
+        orders_asc=orders,
+        candles_by_symbol=candles,
+        current_cash=Decimal("9000"),
+        current_total=Decimal("10010"),
+        window_start_ts=int(buy.timestamp()),
+        now_ts=int(now.timestamp()),
+        sample_step_seconds=60 * 60,
+    )
+    assert len(points) >= 24
+    assert points[0].time == int(buy.timestamp())
+    assert points[-1].time == int(now.timestamp())
+

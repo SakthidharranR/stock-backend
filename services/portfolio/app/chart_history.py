@@ -61,13 +61,31 @@ def _event_ts(row: dict) -> int:
     return int(_as_utc(row["created_at"]).timestamp())
 
 
+def _downsample_chart_points(
+    points: list[PortfolioChartPoint],
+    max_points: int,
+) -> list[PortfolioChartPoint]:
+    n = len(points)
+    if max_points < 2 or n <= max_points:
+        return points
+    picked: list[PortfolioChartPoint] = []
+    for i in range(max_points):
+        idx = round(i * (n - 1) / (max_points - 1))
+        point = points[idx]
+        if not picked or picked[-1].time != point.time:
+            picked.append(point)
+    if picked[-1].time != points[-1].time:
+        picked.append(points[-1])
+    return picked
+
+
 class _PriceCursor:
     """Walk candle closes forward; always returns last known close <= t."""
 
-    def __init__(self, points: list[tuple[int, float]]) -> None:
+    def __init__(self, points: list[tuple[int, float]], seed: float | None = None) -> None:
         self._points = points
         self._i = -1
-        self._last: float | None = None
+        self._last: float | None = seed
 
     def price_at(self, t: int) -> float | None:
         while self._i + 1 < len(self._points) and self._points[self._i + 1][0] <= t:
@@ -85,6 +103,8 @@ def reconstruct_portfolio_chart(
     window_start_ts: int,
     now_ts: int,
     transfers_asc: list[dict] | None = None,
+    sample_step_seconds: int = 0,
+    max_points: int = 240,
 ) -> list[PortfolioChartPoint]:
     """
     Replay trades and cash transfers across a shared candle timeline.
@@ -103,18 +123,22 @@ def reconstruct_portfolio_chart(
     cursors: dict[str, _PriceCursor] = {}
     for symbol, points in candles_by_symbol.items():
         series: list[tuple[int, float]] = []
+        pre_close: float | None = None
         for p in points:
             try:
                 t = int(p["time"])
                 close = float(p["close"])
             except (KeyError, TypeError, ValueError):
                 continue
-            if t < window_start_ts or t > now_ts:
+            if t > now_ts:
+                continue
+            if t < window_start_ts:
+                pre_close = close
                 continue
             series.append((t, close))
         series.sort(key=lambda x: x[0])
-        if series:
-            cursors[symbol.upper()] = _PriceCursor(series)
+        if series or pre_close is not None:
+            cursors[symbol.upper()] = _PriceCursor(series, seed=pre_close)
 
     if not cursors and not orders_asc and not transfers_asc:
         return []
@@ -135,6 +159,11 @@ def reconstruct_portfolio_chart(
             times.add(ts)
     times.add(window_start_ts)
     times.add(now_ts)
+    if sample_step_seconds > 0:
+        t = window_start_ts
+        while t < now_ts:
+            times.add(t)
+            t += sample_step_seconds
 
     if len(times) < 2 and not events:
         return []
@@ -216,4 +245,4 @@ def reconstruct_portfolio_chart(
     if len(points) < 2:
         return []
 
-    return points
+    return _downsample_chart_points(points, max_points)

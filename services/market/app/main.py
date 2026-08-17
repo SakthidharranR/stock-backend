@@ -170,11 +170,24 @@ def create_app(store: MarketStore | None = None, finnhub: FinnhubClient | None =
             raise HTTPException(status_code=400, detail="invalid range")
 
         resolution, days = RANGE_MAP[range]
-        cached = store.get_candles(sym, resolution, limit=500)
-        if len(cached) >= min(days, 5):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cache_limit = max(500, days * 48)
+        cached = store.get_candles(sym, resolution, limit=cache_limit)
+
+        def _in_window(row: dict) -> bool:
+            bar_time = row.get("bar_time")
+            if bar_time is None:
+                return False
+            if bar_time.tzinfo is None:
+                bar_time = bar_time.replace(tzinfo=timezone.utc)
+            return bar_time >= cutoff
+
+        in_range = [row for row in cached if _in_window(row)]
+        min_cached = 8 if days >= 7 else 3
+        if len(in_range) >= min_cached:
             points = [
                 CandlePoint(time=int(row["bar_time"].timestamp()), close=float(row["close"]))
-                for row in cached
+                for row in in_range
             ]
             return CandlesResponse(symbol=sym, range=range, resolution=resolution, points=points)
 
@@ -212,7 +225,7 @@ def create_app(store: MarketStore | None = None, finnhub: FinnhubClient | None =
         if not bars:
             try:
                 quote = _fetch_quote(store, finnhub, sym)
-                if quote:
+                if quote and range == "1D":
                     bars = quote_to_candle_points(quote["price"], quote.get("prev_close"))
             except Exception:
                 logger.exception("quote candle fallback failed symbol=%s", sym)

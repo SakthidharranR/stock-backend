@@ -38,6 +38,14 @@ CHART_RANGE_DAYS = {
     "ALL": 3650,
 }
 
+CHART_SAMPLE_SECONDS = {
+    "1W": 30 * 60,
+    "1M": 2 * 3600,
+    "3M": 12 * 3600,
+    "1Y": 24 * 3600,
+    "ALL": 7 * 24 * 3600,
+}
+
 
 def get_store() -> PortfolioStore:
     if _store is None:
@@ -207,6 +215,7 @@ def _try_reconstruct_chart(
         window_start_ts=window_start_ts,
         now_ts=now_ts,
         transfers_asc=transfers,
+        sample_step_seconds=CHART_SAMPLE_SECONDS.get(chart_range, 0),
     )
     if len(points) < 2:
         return None
@@ -317,7 +326,7 @@ def _build_chart_points(
     cash: Decimal | None = None,
     account_created_at: datetime | None = None,
 ) -> list[PortfolioChartPoint]:
-    if market is not None and cash is not None:
+    if chart_range != "1D" and market is not None and cash is not None:
         try:
             reconstructed = _try_reconstruct_chart(
                 store,

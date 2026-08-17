@@ -13,21 +13,21 @@ logger = logging.getLogger(__name__)
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 RANGE_MAP = {
-    "1D": ("60", 1),
-    "1W": ("D", 7),
-    "1M": ("D", 30),
+    "1D": ("5", 1),
+    "1W": ("60", 7),
+    "1M": ("60", 30),
     "3M": ("D", 90),
-    "1Y": ("W", 52),
-    "ALL": ("M", 120),
+    "1Y": ("D", 365),
+    "ALL": ("W", 260),
 }
 
 YAHOO_RANGE_MAP = {
     "1D": ("1d", "5m"),
-    "1W": ("5d", "1d"),
-    "1M": ("1mo", "1d"),
+    "1W": ("5d", "15m"),
+    "1M": ("1mo", "60m"),
     "3M": ("3mo", "1d"),
-    "1Y": ("1y", "1wk"),
-    "ALL": ("5y", "1mo"),
+    "1Y": ("1y", "1d"),
+    "ALL": ("5y", "1wk"),
 }
 
 
@@ -208,12 +208,14 @@ class MarketStore:
                     SELECT bar_time, close
                     FROM candles
                     WHERE symbol = %s AND resolution = %s
-                    ORDER BY bar_time ASC
+                    ORDER BY bar_time DESC
                     LIMIT %s
                     """,
                     (symbol.upper(), resolution, limit),
                 )
-                return list(cur.fetchall())
+                rows = list(cur.fetchall())
+        rows.reverse()
+        return rows
 
     def upsert_candles(self, symbol: str, resolution: str, bars: list[dict]) -> None:
         if not bars:
