@@ -39,11 +39,20 @@ CHART_RANGE_DAYS = {
 }
 
 CHART_SAMPLE_SECONDS = {
-    "1W": 30 * 60,
-    "1M": 2 * 3600,
-    "3M": 12 * 3600,
+    "1W": 15 * 60,
+    "1M": 60 * 60,
+    "3M": 24 * 3600,
     "1Y": 24 * 3600,
     "ALL": 7 * 24 * 3600,
+}
+
+CHART_MIN_RECONSTRUCTED_POINTS = {
+    "1D": 20,
+    "1W": 40,
+    "1M": 50,
+    "3M": 40,
+    "1Y": 150,
+    "ALL": 40,
 }
 
 
@@ -326,7 +335,8 @@ def _build_chart_points(
     cash: Decimal | None = None,
     account_created_at: datetime | None = None,
 ) -> list[PortfolioChartPoint]:
-    if chart_range != "1D" and market is not None and cash is not None:
+    reconstructed: list[PortfolioChartPoint] | None = None
+    if market is not None and cash is not None:
         try:
             reconstructed = _try_reconstruct_chart(
                 store,
@@ -339,14 +349,20 @@ def _build_chart_points(
                 baseline,
                 account_created_at=account_created_at,
             )
-            if reconstructed:
-                return reconstructed
         except Exception:
             logger.exception("portfolio chart reconstruction failed; falling back to marks")
 
-    return _build_chart_points_from_marks(
+    marks = _build_chart_points_from_marks(
         store, account_id, current_total, baseline, chart_range, today
     )
+    min_needed = CHART_MIN_RECONSTRUCTED_POINTS.get(chart_range, 20)
+    if reconstructed and len(reconstructed) >= min_needed:
+        return reconstructed
+    if reconstructed and len(reconstructed) >= len(marks):
+        return reconstructed
+    if len(marks) >= 2:
+        return marks
+    return reconstructed or marks
 
 
 def _apply_trade_to_daily_baseline(

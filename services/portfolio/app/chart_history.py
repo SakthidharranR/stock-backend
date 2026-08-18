@@ -104,7 +104,7 @@ def reconstruct_portfolio_chart(
     now_ts: int,
     transfers_asc: list[dict] | None = None,
     sample_step_seconds: int = 0,
-    max_points: int = 240,
+    max_points: int = 400,
 ) -> list[PortfolioChartPoint]:
     """
     Replay trades and cash transfers across a shared candle timeline.
