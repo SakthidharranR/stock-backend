@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 RANGE_MAP = {
+    # Robinhood-style intervals: ~78 / ~130 / ~140 / ~63 / ~252 points.
     "1D": ("5", 1),
-    "1W": ("60", 7),
+    "1W": ("15", 7),
     "1M": ("60", 30),
     "3M": ("D", 90),
     "1Y": ("D", 365),
@@ -28,6 +29,15 @@ YAHOO_RANGE_MAP = {
     "3M": ("3mo", "1d"),
     "1Y": ("1y", "1d"),
     "ALL": ("5y", "1wk"),
+}
+
+MIN_CACHED_BARS = {
+    "1D": 50,
+    "1W": 60,
+    "1M": 90,
+    "3M": 50,
+    "1Y": 200,
+    "ALL": 80,
 }
 
 

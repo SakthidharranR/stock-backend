@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.store import (
     FinnhubClient,
+    MIN_CACHED_BARS,
     MarketStore,
     RANGE_MAP,
     YahooChartClient,
@@ -183,7 +184,7 @@ def create_app(store: MarketStore | None = None, finnhub: FinnhubClient | None =
             return bar_time >= cutoff
 
         in_range = [row for row in cached if _in_window(row)]
-        min_cached = 8 if days >= 7 else 3
+        min_cached = MIN_CACHED_BARS.get(range, 40)
         if len(in_range) >= min_cached:
             points = [
                 CandlePoint(time=int(row["bar_time"].timestamp()), close=float(row["close"]))
